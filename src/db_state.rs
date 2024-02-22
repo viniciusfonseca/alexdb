@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicI32;
+use std::{env, sync::atomic::AtomicI32};
 
 use tokio::{fs::File, io::WriteHalf};
 
@@ -18,9 +18,10 @@ pub struct DbState {
 
 impl DbAtomic {
     pub async fn new(id: i32, min_value: i32, log_size: usize) -> DbAtomic {
+        let data_path = env::var("DATA_PATH").expect("no DATA_PATH env var found");
         DbAtomic {
             id,
-            file: File::open("./").await.unwrap(),
+            file: File::open(format!("{data_path}/{id}")).await.unwrap(),
             value: AtomicI32::new(0),
             min_value,
             log_size,

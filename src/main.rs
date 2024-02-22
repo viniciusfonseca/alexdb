@@ -26,7 +26,8 @@ async fn main() {
         .with_state::<()>(db_state);
 
     let socket_path = env::var("SOCKET_PATH").
-        expect("ERROR: no SOCKET_PATH variable found");
+        expect("no SOCKET_PATH env var found");
+
     match tokio::fs::remove_file(&socket_path).await {
         Err(e) => println!("warn: unable to unlink path {socket_path}: {e}"),
         _ => ()

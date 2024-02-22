@@ -1,5 +1,5 @@
 [package]
-name = "aldb"
+name = "alexdb"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,3 +10,4 @@ axum = { git = "https://github.com/tokio-rs/axum.git", branch = "david/generic-s
 tokio = { version = "1.36.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 scc = "2.0.16"
+chrono = "0.4.34"
