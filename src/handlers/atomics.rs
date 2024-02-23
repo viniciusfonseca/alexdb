@@ -62,7 +62,7 @@ pub async fn mutate_atomic(
     let log_bytes = &[format!("{tx_id},{updated_value},{datetime_rfc3339}").as_bytes(), &payload].concat();
     let _ = db_state.log_files.get(&atomic_id).unwrap().get_mut().write_all(log_bytes).await;
     let _ = db_state.atomics.get(&atomic_id).unwrap().get_mut().file.write_all(value.to_string().as_bytes()).await;
-    (StatusCode::OK, format!("{},{}", updated_value, atomic.min_value))
+    (StatusCode::OK, updated_value.to_string())
 }
 
 fn parse_sys_time_as_string(system_time: SystemTime) -> String {
