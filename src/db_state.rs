@@ -24,7 +24,8 @@ impl DbAtomic {
                 .write(true)
                 .read(true)
                 .create(true)
-                .open(format!("{data_path}/{id}")).await.unwrap(),
+                .append(false)
+                .open(format!("{data_path}/{id}.a")).await.unwrap(),
             value: AtomicI32::new(0),
             min_value,
             log_size,

@@ -21,7 +21,7 @@ async fn main() {
     let app = Router::new()
         .route("/atomics", post(handlers::atomics::create_atomic))
         .route("/atomics/:atomic_id", get(handlers::atomics::get_atomic))
-        .route("/atomics/:atomic_id", get(handlers::atomics::get_atomic_logs))
+        .route("/atomics/:atomic_id/logs", get(handlers::atomics::get_atomic_logs))
         .route("/atomics/:atomic_id/:value", post(handlers::atomics::mutate_atomic))
         .with_state::<()>(db_state);
 
