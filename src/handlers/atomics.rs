@@ -7,6 +7,8 @@ use tokio::io::AsyncWriteExt;
 
 use crate::db_state::{DbAtomic, DbState};
 
+const SPACES: u8 = 0x20;
+
 #[derive(Deserialize)]
 pub struct CreateAtomicPayload {
     id: i32,
@@ -59,9 +61,17 @@ pub async fn mutate_atomic(
     atomic.value.store(stored_value, Ordering::Release);
     let tx_id = db_state.tx_id.fetch_add(1, Ordering::AcqRel);
     let datetime_rfc3339 = parse_sys_time_as_string(datetime);
-    let log_bytes = &[format!("{tx_id},{updated_value},{datetime_rfc3339}").as_bytes(), &payload].concat();
-    let _ = db_state.log_files.get(&atomic_id).unwrap().get_mut().write_all(log_bytes).await;
-    let _ = db_state.atomics.get(&atomic_id).unwrap().get_mut().file.write_all(value.to_string().as_bytes()).await;
+    let mut log_bytes = Vec::new();
+    let log_info = &[format!("{tx_id},{updated_value},{datetime_rfc3339}").as_bytes(), &payload].concat();
+    let _ = log_bytes.write_all(&log_info).await;
+    let log_bytes_len = log_bytes.len();
+    if log_bytes_len > atomic.log_size {
+        return (StatusCode::BAD_REQUEST, String::new())
+    }
+    let spaces = vec![SPACES; atomic.log_size - log_bytes_len];
+    _ = log_bytes.write_all(&spaces).await;
+    _ = db_state.log_files.get(&atomic_id).unwrap().get_mut().write_all(&log_bytes).await;
+    _ = db_state.atomics.get(&atomic_id).unwrap().get_mut().file.write_all(value.to_string().as_bytes()).await;
     (StatusCode::OK, updated_value.to_string())
 }
 
