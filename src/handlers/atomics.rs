@@ -1,4 +1,4 @@
-use std::{env, sync::{atomic::Ordering, Arc}, time::SystemTime};
+use std::{env, future, sync::{atomic::Ordering, Arc}, time::SystemTime};
 
 use axum::{body::Bytes, extract::{Path, State}, http::StatusCode, response::IntoResponse, Json};
 use chrono::{DateTime, Utc};
@@ -65,12 +65,12 @@ pub async fn mutate_atomic(
     let log_info = &[format!("{tx_id},{updated_value},{datetime_rfc3339}").as_bytes(), &payload].concat();
     let _ = log_bytes.write_all(&log_info).await;
     let log_bytes_len = log_bytes.len();
-    if log_bytes_len > atomic.log_size {
+    if log_bytes_len > atomic.log_size - 1 {
         return (StatusCode::BAD_REQUEST, String::new())
     }
-    let spaces = vec![SPACES; atomic.log_size - log_bytes_len];
+    let spaces = vec![SPACES; atomic.log_size - log_bytes_len - 1];
     _ = log_bytes.write_all(&spaces).await;
-    _ = db_state.log_files.get(&atomic_id).unwrap().get_mut().write_all(&log_bytes).await;
+    _ = db_state.log_files.get(&atomic_id).unwrap().get_mut().write_all(&[log_bytes, spaces, vec![0x0A]].concat()).await;
     _ = db_state.atomics.get(&atomic_id).unwrap().get_mut().file.write_all(value.to_string().as_bytes()).await;
     (StatusCode::OK, updated_value.to_string())
 }
