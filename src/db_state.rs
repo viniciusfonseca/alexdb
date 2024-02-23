@@ -1,6 +1,5 @@
 use std::{env, sync::atomic::AtomicI32};
-
-use tokio::{fs::File, io::WriteHalf};
+use tokio::{fs::{File, OpenOptions}, io::WriteHalf};
 
 pub struct DbAtomic {
     pub id: i32,
@@ -21,7 +20,11 @@ impl DbAtomic {
         let data_path = env::var("DATA_PATH").expect("no DATA_PATH env var found");
         DbAtomic {
             id,
-            file: File::open(format!("{data_path}/{id}")).await.unwrap(),
+            file: OpenOptions::new()
+                .write(true)
+                .read(true)
+                .create(true)
+                .open(format!("{data_path}/{id}")).await.unwrap(),
             value: AtomicI32::new(0),
             min_value,
             log_size,
