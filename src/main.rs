@@ -2,6 +2,7 @@ use std::{env, sync::{atomic::AtomicI32, Arc}};
 
 use axum::{routing::{get, post}, Router};
 use db_state::DbState;
+use tokio::sync::RwLock;
 
 mod handlers;
 mod db_state;
@@ -9,13 +10,15 @@ mod db_state;
 #[tokio::main]
 async fn main() {
 
-    let atomics = scc::HashMap::new();
+    let atomics = std::collections::HashMap::new();
     let log_files = scc::HashMap::new();
+    let atomic_files = scc::HashMap::new();
 
     let db_state = Arc::new(DbState {
-        atomics,
+        atomics: RwLock::new(atomics),
         tx_id: AtomicI32::new(1),
-        log_files
+        log_files,
+        atomic_files
     });
     
     let app = Router::new()

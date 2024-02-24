@@ -3,7 +3,7 @@ use std::{env, sync::{atomic::Ordering, Arc}, time::SystemTime};
 use axum::{body::Bytes, extract::{Path, State}, http::StatusCode, response::IntoResponse, Json};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
-use tokio::io::AsyncWriteExt;
+use tokio::{fs::OpenOptions, io::AsyncWriteExt};
 
 use crate::db_state::{DbAtomic, DbState};
 
@@ -21,10 +21,27 @@ pub async fn create_atomic(
     Json(payload): Json<CreateAtomicPayload>
 ) -> impl IntoResponse {
     let data_path = env::var("DATA_PATH").expect("no DATA_PATH env var found");
-    let _ = db_state.atomics.insert_async(payload.id, DbAtomic::new(payload.id, payload.min_value, payload.log_size).await).await;
+    {
+        let mut atomics = db_state.atomics.write().await;
+        let _ = atomics.insert(payload.id, DbAtomic::new(payload.id, payload.min_value, payload.log_size).await);
+    }
     db_state.log_files.insert_async(payload.id, tokio::io::split(
-        tokio::fs::File::open(format!("{data_path}/{}.log", payload.id)).await.unwrap()
-    ).1,).await.unwrap();
+        OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .append(true)
+            .open(format!("{data_path}/{}.log", payload.id)).await.unwrap()
+    ).1).await.unwrap();
+    db_state.atomic_files.insert_async(payload.id, tokio::io::split(
+        OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .append(false)
+            .open(format!("{data_path}/{}.a", payload.id)).await.unwrap()
+    ).1).await.unwrap();
+    println!("New atomic created: {}", payload.id);
     (StatusCode::CREATED, "")
 }
 
@@ -32,8 +49,8 @@ pub async fn get_atomic(
     State(db_state): State<Arc<DbState>>,
     Path(atomic_id): Path<i32>,
 ) -> impl IntoResponse {
-    let atomic = db_state.atomics.get(&atomic_id).unwrap();
-    let atomic = atomic.get();
+    let atomics = db_state.atomics.read().await;
+    let atomic = atomics.get(&atomic_id).unwrap();
     (StatusCode::OK, format!("{},{}", atomic.value.load(Ordering::SeqCst), atomic.min_value))
 }
 
@@ -41,7 +58,7 @@ pub async fn get_atomic_logs(
     State(db_state): State<Arc<DbState>>,
     Path(atomic_id): Path<i32>,
 ) -> impl IntoResponse {
-    let atomics = &db_state.atomics;
+    let atomics = &db_state.atomics.read().await;
     let _atomic = atomics.get(&atomic_id).unwrap();
 }
 
@@ -50,8 +67,8 @@ pub async fn mutate_atomic(
     Path((atomic_id, value)): Path<(i32, i32)>,
     payload: Bytes
 ) -> impl IntoResponse {
-    let atomic = db_state.atomics.get(&atomic_id).unwrap();
-    let atomic = atomic.get();
+    let atomics = db_state.atomics.read().await;
+    let atomic = atomics.get(&atomic_id).unwrap();
     let stored_value = atomic.value.load(Ordering::Acquire);
     let updated_value = stored_value + value;
     if updated_value < atomic.min_value {
@@ -71,7 +88,7 @@ pub async fn mutate_atomic(
     let spaces = vec![SPACES; atomic.log_size - log_bytes_len - 1];
     _ = log_bytes.write_all(&spaces).await;
     _ = db_state.log_files.get(&atomic_id).unwrap().get_mut().write_all(&[log_bytes, spaces, vec![0x0A]].concat()).await;
-    _ = db_state.atomics.get(&atomic_id).unwrap().get_mut().file.write_all(value.to_string().as_bytes()).await;
+    _ = db_state.atomic_files.get(&atomic_id).unwrap().get_mut().write_all(value.to_string().as_bytes()).await;
     (StatusCode::OK, updated_value.to_string())
 }
 
