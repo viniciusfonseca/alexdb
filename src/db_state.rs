@@ -1,5 +1,7 @@
-use std::sync::{atomic::AtomicI32, Arc};
+use std::sync::{atomic::AtomicI32, mpsc::Sender, Arc};
 use tokio::{fs::File, io::WriteHalf, sync::RwLock};
+
+pub type FsChannelMsg = (Vec<u8>, i32, i32);
 
 pub struct DbAtomic {
     pub id: i32,
@@ -12,7 +14,8 @@ pub struct DbState {
     pub atomics: RwLock<std::collections::HashMap<i32, DbAtomic>>,
     pub tx_id: AtomicI32,
     pub log_files: scc::HashMap<i32, WriteHalf<File>>,
-    pub atomic_files: scc::HashMap<i32, WriteHalf<File>>
+    pub atomic_files: scc::HashMap<i32, File>,
+    pub fs_channel: Sender<FsChannelMsg>
 }
 
 impl DbAtomic {

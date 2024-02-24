@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 mod handlers;
 mod db_state;
+mod fs_channel;
 
 #[tokio::main]
 async fn main() {
@@ -13,13 +14,17 @@ async fn main() {
     let atomics = std::collections::HashMap::new();
     let log_files = scc::HashMap::new();
     let atomic_files = scc::HashMap::new();
+    let (fs_channel_tx, fs_channel_rx) = std::sync::mpsc::channel();
 
-    let db_state = Arc::new(DbState {
+    let db_state: Arc<DbState> = Arc::new(DbState {
         atomics: RwLock::new(atomics),
         tx_id: AtomicI32::new(1),
         log_files,
-        atomic_files
+        atomic_files,
+        fs_channel: fs_channel_tx
     });
+
+    fs_channel::setup(fs_channel_rx, db_state.clone());
     
     let app = Router::new()
         .route("/atomics", post(handlers::atomics::create_atomic))

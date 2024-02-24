@@ -33,14 +33,14 @@ pub async fn create_atomic(
             .append(true)
             .open(format!("{data_path}/{}.log", payload.id)).await.unwrap()
     ).1).await.unwrap();
-    db_state.atomic_files.insert_async(payload.id, tokio::io::split(
+    db_state.atomic_files.insert_async(payload.id, 
         OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
             .append(false)
             .open(format!("{data_path}/{}.a", payload.id)).await.unwrap()
-    ).1).await.unwrap();
+    ).await.unwrap();
     println!("New atomic created: {}", payload.id);
     (StatusCode::CREATED, "")
 }
@@ -75,11 +75,11 @@ pub async fn mutate_atomic(
         return (StatusCode::UNPROCESSABLE_ENTITY, String::new())
     }
     let datetime = SystemTime::now();
-    atomic.value.store(stored_value, Ordering::Release);
     let tx_id = db_state.tx_id.fetch_add(1, Ordering::AcqRel);
+    atomic.value.store(updated_value, Ordering::Release);
     let datetime_rfc3339 = parse_sys_time_as_string(datetime);
     let mut log_bytes = Vec::new();
-    let log_info = &[format!("{tx_id},{updated_value},{datetime_rfc3339}").as_bytes(), &payload].concat();
+    let log_info = &[format!("{tx_id},{updated_value},{datetime_rfc3339},").as_bytes(), &payload].concat();
     let _ = log_bytes.write_all(&log_info).await;
     let log_bytes_len = log_bytes.len();
     if log_bytes_len > atomic.log_size - 1 {
@@ -87,8 +87,8 @@ pub async fn mutate_atomic(
     }
     let spaces = vec![SPACES; atomic.log_size - log_bytes_len - 1];
     _ = log_bytes.write_all(&spaces).await;
-    _ = db_state.log_files.get(&atomic_id).unwrap().get_mut().write_all(&[log_bytes, spaces, vec![0x0A]].concat()).await;
-    _ = db_state.atomic_files.get(&atomic_id).unwrap().get_mut().write_all(value.to_string().as_bytes()).await;
+    let log = &[log_bytes, spaces, vec![0x0A]].concat();
+    _ = db_state.fs_channel.send((log.to_vec(), atomic_id, updated_value));
     (StatusCode::OK, updated_value.to_string())
 }
 
