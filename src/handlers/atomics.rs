@@ -86,7 +86,6 @@ pub async fn mutate_atomic(
         return (StatusCode::BAD_REQUEST, String::new())
     }
     let spaces = vec![SPACES; atomic.log_size - log_bytes_len - 1];
-    _ = log_bytes.write_all(&spaces).await;
     let log = &[log_bytes, spaces, vec![0x0A]].concat();
     _ = db_state.fs_channel.send((log.to_vec(), atomic_id, updated_value));
     (StatusCode::OK, updated_value.to_string())
