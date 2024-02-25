@@ -13,14 +13,12 @@ async fn main() {
 
     let atomics = std::collections::HashMap::new();
     let log_files = scc::HashMap::new();
-    let atomic_files = scc::HashMap::new();
-    let (fs_channel_tx, fs_channel_rx) = std::sync::mpsc::channel();
+    let (fs_channel_tx, fs_channel_rx) = tokio::sync::mpsc::channel(100);
 
     let db_state: Arc<DbState> = Arc::new(DbState {
         atomics: RwLock::new(atomics),
         tx_id: AtomicI32::new(1),
         log_files,
-        atomic_files,
         fs_channel: fs_channel_tx
     });
 
