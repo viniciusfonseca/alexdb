@@ -7,6 +7,7 @@ use tokio::sync::RwLock;
 mod handlers;
 mod db_state;
 mod fs_channel;
+mod udp;
 
 #[tokio::main]
 async fn main() {
@@ -23,6 +24,12 @@ async fn main() {
     });
 
     fs_channel::setup(fs_channel_rx, db_state.clone());
+
+    if let Ok(udp_port) = env::var("UDP_PORT") {
+        let socket = tokio::net::UdpSocket::bind(format!("0.0.0.0:{udp_port}")).await.unwrap();
+        udp::net_loop(socket, db_state).await;
+        return
+    }
     
     let app = Router::new()
         .route("/atomics", post(handlers::atomics::create_atomic))
@@ -31,8 +38,7 @@ async fn main() {
         .route("/atomics/:atomic_id/:value", post(handlers::atomics::mutate_atomic))
         .with_state::<()>(db_state);
 
-    let socket_path = env::var("SOCKET_PATH").
-        expect("no SOCKET_PATH env var found");
+    let socket_path = env::var("SOCKET_PATH").expect("no SOCKET_PATH env var found");
 
     match tokio::fs::remove_file(&socket_path).await {
         Err(e) => println!("warn: unable to unlink path {socket_path}: {e}"),
