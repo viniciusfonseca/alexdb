@@ -27,7 +27,7 @@ async fn main() {
 
     if let Ok(udp_port) = env::var("UDP_PORT") {
         let socket = tokio::net::UdpSocket::bind(format!("0.0.0.0:{udp_port}")).await.unwrap();
-        udp::net_loop(socket, db_state).await;
+        udp::net_loop(Arc::new(socket), db_state).await;
         return
     }
     
