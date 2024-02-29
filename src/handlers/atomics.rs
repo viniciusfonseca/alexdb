@@ -11,15 +11,15 @@ const SPACES: u8 = 0x20;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateAtomicPayload {
-    id: i32,
-    min_value: i32,
-    log_size: usize
+    pub id: i32,
+    pub min_value: i32,
+    pub log_size: usize
 }
 
 pub async fn create_atomic(
     State(db_state): State<Arc<DbState>>,
     Json(payload): Json<CreateAtomicPayload>
-) -> impl IntoResponse {
+) -> (StatusCode, String) {
     let data_path = env::var("DATA_PATH").expect("no DATA_PATH env var found");
     {
         let mut atomics = db_state.atomics.write().await;
@@ -34,13 +34,13 @@ pub async fn create_atomic(
             .open(format!("{data_path}/{}.log", payload.id)).await.unwrap()
     ).1).await.unwrap();
     println!("New atomic created: {}", payload.id);
-    (StatusCode::CREATED, "")
+    (StatusCode::CREATED, String::new())
 }
 
 pub async fn get_atomic(
     State(db_state): State<Arc<DbState>>,
     Path(atomic_id): Path<i32>,
-) -> impl IntoResponse {
+) -> (StatusCode, String) {
     let atomics = db_state.atomics.read().await;
     let atomic = atomics.get(&atomic_id).unwrap();
     (StatusCode::OK, atomic.value.load(Ordering::SeqCst).to_string())
@@ -58,7 +58,7 @@ pub async fn mutate_atomic(
     State(db_state): State<Arc<DbState>>,
     Path((atomic_id, value)): Path<(i32, i32)>,
     payload: Bytes
-) -> impl IntoResponse {
+) -> (StatusCode, String) {
     let atomics = db_state.atomics.read().await;
     let atomic = atomics.get(&atomic_id).unwrap();
     let stored_value = atomic.value.load(Ordering::Acquire);
@@ -74,9 +74,6 @@ pub async fn mutate_atomic(
     let log_info = &[format!("{tx_id},{value},{updated_value},{datetime_rfc3339},").as_bytes(), &payload].concat();
     let _ = log_bytes.write_all(&log_info).await;
     let log_bytes_len = log_bytes.len();
-    if log_bytes_len > atomic.log_size - 1 {
-        return (StatusCode::BAD_REQUEST, String::new())
-    }
     let spaces = vec![SPACES; atomic.log_size - log_bytes_len - 1];
     let log = &[log_bytes, spaces, vec![0x0A]].concat();
     _ = db_state.fs_channel.send((log.to_vec(), atomic_id)).await;
