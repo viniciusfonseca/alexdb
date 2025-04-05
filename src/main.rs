@@ -3,7 +3,6 @@ use std::{env, sync::{atomic::AtomicI32, Arc}};
 use axum::{routing::{get, post}, Router};
 use db_state::DbState;
 use tokio::sync::RwLock;
-use vfs::async_vfs::AsyncPhysicalFS;
 
 mod handlers;
 mod db_state;
