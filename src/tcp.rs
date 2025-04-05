@@ -1,15 +1,15 @@
 use std::{str::FromStr, sync::Arc};
 
 use axum::{body::Bytes, extract::{Path, State}, http::StatusCode, Json};
-use tokio::net::UdpSocket;
+use tokio::{io::AsyncWriteExt, net::TcpListener};
 
 use crate::{db_state::DbState, handlers::{self, atomics::CreateAtomicPayload}};
 
-pub async fn net_loop(socket: Arc<UdpSocket>, db_state: Arc<DbState>) {
+pub async fn net_loop(socket: Arc<TcpListener>, db_state: Arc<DbState>) {
     loop {
-        let mut buf = [0; 256];
+        let buf = [0; 256];
         let socket = socket.clone();
-        let (_, addr) = socket.recv_from(&mut buf).await.unwrap();
+        let (mut stream, _) = socket.accept().await.unwrap();
         let db_state_async = db_state.clone();
 
         tokio::spawn(async move {
@@ -18,7 +18,6 @@ pub async fn net_loop(socket: Arc<UdpSocket>, db_state: Arc<DbState>) {
                 Ok(s) => s,
                 Err(_) => return
             };
-            let callback_key = &buf[9..18];
             let data = &buf[18..256];
     
             let (_, response) = match cmd.trim() {
@@ -51,7 +50,7 @@ pub async fn net_loop(socket: Arc<UdpSocket>, db_state: Arc<DbState>) {
                 _ => (StatusCode::INTERNAL_SERVER_ERROR, String::new())
             };
             
-            socket.send_to(&[callback_key, response.as_bytes()].concat(), addr).await.unwrap();
+            stream.write(response.as_bytes()).await.unwrap();
         });
 
     }

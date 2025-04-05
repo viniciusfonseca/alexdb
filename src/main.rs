@@ -3,11 +3,12 @@ use std::{env, sync::{atomic::AtomicI32, Arc}};
 use axum::{routing::{get, post}, Router};
 use db_state::DbState;
 use tokio::sync::RwLock;
+use vfs::async_vfs::AsyncPhysicalFS;
 
 mod handlers;
 mod db_state;
 mod fs_channel;
-mod udp;
+mod tcp;
 
 #[tokio::main]
 async fn main() {
@@ -20,14 +21,14 @@ async fn main() {
         atomics: RwLock::new(atomics),
         tx_id: AtomicI32::new(1),
         log_files,
-        fs_channel: fs_channel_tx
+        fs_channel: fs_channel_tx,
     });
 
     fs_channel::setup(fs_channel_rx, db_state.clone());
 
-    if let Ok(udp_port) = env::var("UDP_PORT") {
-        let socket = tokio::net::UdpSocket::bind(format!("0.0.0.0:{udp_port}")).await.unwrap();
-        udp::net_loop(Arc::new(socket), db_state).await;
+    if let Ok(tcp_port) = env::var("TCP_PORT") {
+        let socket = tokio::net::TcpListener::bind(format!("0.0.0.0:{tcp_port}")).await.unwrap();
+        tcp::net_loop(Arc::new(socket), db_state).await;
         return
     }
     
