@@ -23,7 +23,7 @@ pub async fn create_atomic(
     let data_path = env::var("DATA_PATH").expect("no DATA_PATH env var found");
     {
         let mut atomics = db_state.atomics.write().await;
-        _ = atomics.insert(payload.id, DbAtomic::new(payload.id, payload.min_value, payload.log_size).await);
+        _ = atomics.insert(payload.id, DbAtomic::new(payload.min_value, payload.log_size).await);
     }
     db_state.log_files.insert_async(payload.id, tokio::io::split(
         OpenOptions::new()
