@@ -17,9 +17,11 @@ async fn main() {
     let (fs_channel_tx, fs_channel_rx) = tokio::sync::mpsc::channel(100);
 
     let db_state: Arc<DbState> = Arc::new(DbState {
+        data_path: env::var("DATA_PATH").expect("no DATA_PATH env var found"),
         atomics: RwLock::new(atomics),
         tx_id: AtomicI32::new(1),
         log_files,
+        atomic_fd: scc::HashMap::new(),
         fs_channel: fs_channel_tx,
     });
 
